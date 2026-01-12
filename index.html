@@ -2,62 +2,77 @@
 <html>
 <head>
   <title>Monitoring Kolam Ikan</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-
-  <!-- Firebase v8 -->
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-
-  <style>
-    body { font-family: Arial; background:#f4f6f8; text-align:center; }
-    .box { background:white; padding:20px; margin:15px auto; width:300px; border-radius:10px; }
-    .aman { color:green; }
-    .bahaya { color:red; }
-  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-
 <body>
 
 <h2>📊 Monitoring Kolam Ikan</h2>
 
-<div class="box">
-  🌡 Suhu: <b><span id="suhu">--</span> °C</b>
-</div>
+<p>Suhu: <b id="suhu">-</b> °C</p>
+<p>pH: <b id="ph">-</b></p>
+<p>TDS: <b id="tds">-</b> ppm</p>
+<p>Status: <span id="status">-</span></p>
 
-<div class="box">
-  🧪 pH: <b><span id="ph">--</span></b>
-</div>
+<canvas id="grafik" width="400" height="200"></canvas>
 
-<div class="box">
-  💧 TDS: <b><span id="tds">--</span> ppm</b>
-</div>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+  import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 
-<div class="box">
-  🚦 Status: <b><span id="status">--</span></b>
-</div>
-
-<script>
-  // ===== GANTI SESUAI FIREBASE =====
-  var firebaseConfig = {
+  const firebaseConfig = {
     apiKey: "AIzaSyAqrcy4kG9c8Os6uodLSJstNR_6e6VhHYc",
     databaseURL: "https://monitoring-kolam-ikan-b1c16-default-rtdb.asia-southeast1.firebasedatabase.app/"
   };
 
-  firebase.initializeApp(firebaseConfig);
-  var db = firebase.database();
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const monitoringRef = ref(db, "monitoring");
 
-  db.ref("monitoring").on("value", function(snapshot) {
-    var data = snapshot.val();
-    if (!data) return;
+  const ctx = document.getElementById('grafik');
+  const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'TDS (ppm)',
+        data: [],
+        borderWidth: 2
+      }]
+    }
+  });
+
+  onValue(monitoringRef, (snapshot) => {
+    const data = snapshot.val();
 
     document.getElementById("suhu").innerHTML = data.suhu;
     document.getElementById("ph").innerHTML = data.ph;
     document.getElementById("tds").innerHTML = data.tds;
 
-    var statusEl = document.getElementById("status");
-    statusEl.innerHTML = data.status;
-    statusEl.className = (data.status === "AMAN") ? "aman" : "bahaya";
+    // grafik realtime
+    const time = new Date().toLocaleTimeString();
+    chart.data.labels.push(time);
+    chart.data.datasets[0].data.push(data.tds);
+
+    if (chart.data.labels.length > 10) {
+      chart.data.labels.shift();
+      chart.data.datasets[0].data.shift();
+    }
+    chart.update();
+
+    updateStatus(data);
   });
+
+  function updateStatus(data){
+    const statusEl = document.getElementById("status");
+
+    if (data.ph < 6.5 || data.ph > 8.5 || data.tds > 1000) {
+      statusEl.innerHTML = "⚠️ TIDAK AMAN";
+      statusEl.style.color = "red";
+    } else {
+      statusEl.innerHTML = "✅ AMAN";
+      statusEl.style.color = "green";
+    }
+  }
 </script>
 
 </body>
