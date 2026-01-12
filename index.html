@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Monitoring Kolam Ikan</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Firebase v8 -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+  <style>
+    body { font-family: Arial; background:#f4f6f8; text-align:center; }
+    .box { background:white; padding:20px; margin:15px auto; width:300px; border-radius:10px; }
+    .aman { color:green; }
+    .bahaya { color:red; }
+  </style>
+</head>
+
+<body>
+
+<h2>📊 Monitoring Kolam Ikan</h2>
+
+<div class="box">
+  🌡 Suhu: <b><span id="suhu">--</span> °C</b>
+</div>
+
+<div class="box">
+  🧪 pH: <b><span id="ph">--</span></b>
+</div>
+
+<div class="box">
+  💧 TDS: <b><span id="tds">--</span> ppm</b>
+</div>
+
+<div class="box">
+  🚦 Status: <b><span id="status">--</span></b>
+</div>
+
+<script>
+  // ===== GANTI SESUAI FIREBASE =====
+  var firebaseConfig = {
+    apiKey: "AIzaSyAqrcy4kG9c8Os6uodLSJstNR_6e6VhHYc",
+    databaseURL: "https://monitoring-kolam-ikan-b1c16-default-rtdb.asia-southeast1.firebasedatabase.app/"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  var db = firebase.database();
+
+  db.ref("monitoring").on("value", function(snapshot) {
+    var data = snapshot.val();
+    if (!data) return;
+
+    document.getElementById("suhu").innerHTML = data.suhu;
+    document.getElementById("ph").innerHTML = data.ph;
+    document.getElementById("tds").innerHTML = data.tds;
+
+    var statusEl = document.getElementById("status");
+    statusEl.innerHTML = data.status;
+    statusEl.className = (data.status === "AMAN") ? "aman" : "bahaya";
+  });
+</script>
+
+</body>
+</html>
