@@ -1,78 +1,152 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
+  <meta charset="UTF-8">
   <title>Monitoring Kolam Ikan</title>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      font-family: Arial;
+      background: #eef2f7;
+      text-align: center;
+      padding: 10px;
+    }
+    h2 { color:#2c3e50; }
+    .card {
+      background:white;
+      padding:15px;
+      margin:10px auto;
+      max-width:900px;
+      border-radius:8px;
+      box-shadow:0 2px 6px rgba(0,0,0,.15);
+    }
+    canvas { max-width:100%; }
+    button {
+      padding:10px 20px;
+      margin:10px;
+      font-size:16px;
+      border:none;
+      background:#3498db;
+      color:white;
+      border-radius:6px;
+      cursor:pointer;
+    }
+    button:hover { background:#2980b9; }
+  </style>
 </head>
+
 <body>
 
 <h2>📊 Monitoring Kolam Ikan</h2>
 
-<p>Suhu: <b id="suhu">-</b> °C</p>
-<p>pH: <b id="ph">-</b></p>
-<p>TDS: <b id="tds">-</b> ppm</p>
-<p>Status: <span id="status">-</span></p>
+<div class="card">
+  <h3>Realtime</h3>
+  <p>
+    pH: <b><span id="ph">-</span></b> |
+    Suhu: <b><span id="suhu">-</span> °C</b> |
+    TDS: <b><span id="tds">-</span> ppm</b>
+  </p>
+</div>
 
-<canvas id="grafik" width="400" height="200"></canvas>
+<div class="card">
+  <h3>Grafik Realtime</h3>
+  <canvas id="chart"></canvas>
+</div>
 
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-  import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+<div class="card">
+  <h3>Riwayat Data</h3>
+  <button onclick="downloadCSV()">⬇ Download CSV (Excel)</button>
+</div>
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyAqrcy4kG9c8Os6uodLSJstNR_6e6VhHYc",
-    databaseURL: "https://monitoring-kolam-ikan-b1c16-default-rtdb.asia-southeast1.firebasedatabase.app/"
-  };
+<script>
+/* ===== FIREBASE CONFIG ===== */
+const firebaseConfig = {
+  apiKey: "AIzaSyAqrcy4kG9c8Os6uodLSJstNR_6e6VhHYc",
+  databaseURL: "https://monitoring-kolam-ikan-b1c16-default-rtdb.asia-southeast1.firebasedatabase.app/"
+};
 
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
-  const monitoringRef = ref(db, "monitoring");
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
-  const ctx = document.getElementById('grafik');
-  const chart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: [],
-      datasets: [{
-        label: 'TDS (ppm)',
-        data: [],
-        borderWidth: 2
-      }]
-    }
-  });
+/* ===== GRAFIK ===== */
+let labels = [];
+let phData = [];
+let suhuData = [];
+let tdsData = [];
 
-  onValue(monitoringRef, (snapshot) => {
-    const data = snapshot.val();
-
-    document.getElementById("suhu").innerHTML = data.suhu;
-    document.getElementById("ph").innerHTML = data.ph;
-    document.getElementById("tds").innerHTML = data.tds;
-
-    // grafik realtime
-    const time = new Date().toLocaleTimeString();
-    chart.data.labels.push(time);
-    chart.data.datasets[0].data.push(data.tds);
-
-    if (chart.data.labels.length > 10) {
-      chart.data.labels.shift();
-      chart.data.datasets[0].data.shift();
-    }
-    chart.update();
-
-    updateStatus(data);
-  });
-
-  function updateStatus(data){
-    const statusEl = document.getElementById("status");
-
-    if (data.ph < 6.5 || data.ph > 8.5 || data.tds > 1000) {
-      statusEl.innerHTML = "⚠️ TIDAK AMAN";
-      statusEl.style.color = "red";
-    } else {
-      statusEl.innerHTML = "✅ AMAN";
-      statusEl.style.color = "green";
+const ctx = document.getElementById('chart').getContext('2d');
+const chart = new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: labels,
+    datasets: [
+      { label: 'pH', data: phData, borderWidth: 2 },
+      { label: 'Suhu (°C)', data: suhuData, borderWidth: 2 },
+      { label: 'TDS (ppm)', data: tdsData, borderWidth: 2 }
+    ]
+  },
+  options: {
+    responsive: true,
+    animation: false,
+    scales: {
+      y: { beginAtZero: false }
     }
   }
+});
+
+/* ===== REALTIME ===== */
+db.ref("realtime").on("value", snap => {
+  if (!snap.exists()) return;
+  const d = snap.val();
+
+  document.getElementById("ph").innerText = d.ph.toFixed(2);
+  document.getElementById("suhu").innerText = d.suhu.toFixed(1);
+  document.getElementById("tds").innerText = d.tds.toFixed(0);
+
+  const time = new Date().toLocaleTimeString();
+
+  labels.push(time);
+  phData.push(d.ph);
+  suhuData.push(d.suhu);
+  tdsData.push(d.tds);
+
+  if (labels.length > 30) {
+    labels.shift();
+    phData.shift();
+    suhuData.shift();
+    tdsData.shift();
+  }
+
+  chart.update();
+});
+
+/* ===== CSV EXPORT ===== */
+function downloadCSV() {
+  db.ref("riwayat").once("value").then(snapshot => {
+    let csv = "Waktu,pH,Suhu,TDS\n";
+
+    snapshot.forEach(child => {
+      const t = child.key;
+      const d = child.val();
+      csv += `${t},${d.ph},${d.suhu},${d.tds}\n`;
+    });
+
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "riwayat_kolam.csv";
+    a.click();
+  });
+}
 </script>
 
 </body>
