@@ -2,151 +2,125 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <title>Monitoring Kolam Ikan</title>
+  <title>Monitoring Kualitas Air</title>
 
-  <!-- Firebase -->
+  <!-- Firebase CDN -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
   <style>
     body {
-      font-family: Arial;
-      background: #eef2f7;
-      text-align: center;
-      padding: 10px;
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      padding: 20px;
     }
-    h2 { color:#2c3e50; }
     .card {
-      background:white;
-      padding:15px;
-      margin:10px auto;
-      max-width:900px;
-      border-radius:8px;
-      box-shadow:0 2px 6px rgba(0,0,0,.15);
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      max-width: 400px;
+      margin-bottom: 20px;
     }
-    canvas { max-width:100%; }
+    .status {
+      font-weight: bold;
+      padding: 10px;
+      border-radius: 5px;
+      color: white;
+      text-align: center;
+    }
+    .aman { background: green; }
+    .waspada { background: orange; }
+    .bahaya { background: red; }
     button {
-      padding:10px 20px;
-      margin:10px;
-      font-size:16px;
-      border:none;
-      background:#3498db;
-      color:white;
-      border-radius:6px;
-      cursor:pointer;
+      padding: 10px;
+      border: none;
+      background: #007bff;
+      color: white;
+      border-radius: 5px;
+      cursor: pointer;
     }
-    button:hover { background:#2980b9; }
   </style>
 </head>
 
 <body>
 
-<h2>📊 Monitoring Kolam Ikan</h2>
+<h2>📡 Monitoring Kualitas Air (Realtime)</h2>
 
 <div class="card">
-  <h3>Realtime</h3>
-  <p>
-    pH: <b><span id="ph">-</span></b> |
-    Suhu: <b><span id="suhu">-</span> °C</b> |
-    TDS: <b><span id="tds">-</span> ppm</b>
-  </p>
+  <p>🌡 Suhu: <span id="suhu">-</span> °C</p>
+  <p>🧪 pH: <span id="ph">-</span></p>
+  <p>💧 TDS: <span id="tds">-</span> ppm</p>
+  <p>⏱ Update: <span id="waktu">-</span></p>
+
+  <div id="status" class="status">MENUNGGU DATA</div>
 </div>
 
-<div class="card">
-  <h3>Grafik Realtime</h3>
-  <canvas id="chart"></canvas>
-</div>
-
-<div class="card">
-  <h3>Riwayat Data</h3>
-  <button onclick="downloadCSV()">⬇ Download CSV (Excel)</button>
-</div>
+<button onclick="exportCSV()">⬇️ Export CSV</button>
 
 <script>
-/* ===== FIREBASE CONFIG ===== */
-const firebaseConfig = {
-  apiKey: "AIzaSyAqrcy4kG9c8Os6uodLSJstNR_6e6VhHYc",
-  databaseURL: "https://monitoring-kolam-ikan-b1c16-default-rtdb.asia-southeast1.firebasedatabase.app/"
-};
+  // 🔥 GANTI SESUAI FIREBASE KAMU
+  const firebaseConfig = {
+    apiKey: "AIzaSyAqrcy4kG9c8Os6uodLSJstNR_6e6VhHYc",
+    authDomain: "monitoring-kolam-ikan-b1c16.firebaseapp.com",
+    databaseURL: "https://monitoring-kolam-ikan-b1c16-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "monitoring-kolam-ikan-b1c16",
+    storageBucket: "monitoring-kolam-ikan-b1c16.firebasestorage.app",
+    messagingSenderId: "522306586334",
+    appId: "1:522306586334:web:cabf4a21b9707bb5a8e44f"
+  };
 
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
 
-/* ===== GRAFIK ===== */
-let labels = [];
-let phData = [];
-let suhuData = [];
-let tdsData = [];
+  let dataLog = [];
 
-const ctx = document.getElementById('chart').getContext('2d');
-const chart = new Chart(ctx, {
-  type: 'line',
-  data: {
-    labels: labels,
-    datasets: [
-      { label: 'pH', data: phData, borderWidth: 2 },
-      { label: 'Suhu (°C)', data: suhuData, borderWidth: 2 },
-      { label: 'TDS (ppm)', data: tdsData, borderWidth: 2 }
-    ]
-  },
-  options: {
-    responsive: true,
-    animation: false,
-    scales: {
-      y: { beginAtZero: false }
+  db.ref("monitoring").on("value", snapshot => {
+    const data = snapshot.val();
+    if (!data) return;
+
+    document.getElementById("suhu").innerText = data.suhu;
+    document.getElementById("ph").innerText = data.ph;
+    document.getElementById("tds").innerText = data.tds;
+    document.getElementById("waktu").innerText = data.waktu;
+
+    let statusText = "AMAN";
+    let statusClass = "aman";
+
+    if (data.ph < 6.5 || data.ph > 8.5 || data.tds > 1000) {
+      statusText = "BAHAYA";
+      statusClass = "bahaya";
+    } else if (data.tds > 600) {
+      statusText = "WASPADA";
+      statusClass = "waspada";
     }
-  }
-});
 
-/* ===== REALTIME ===== */
-db.ref("realtime").on("value", snap => {
-  if (!snap.exists()) return;
-  const d = snap.val();
+    const statusDiv = document.getElementById("status");
+    statusDiv.innerText = statusText;
+    statusDiv.className = "status " + statusClass;
 
-  document.getElementById("ph").innerText = d.ph.toFixed(2);
-  document.getElementById("suhu").innerText = d.suhu.toFixed(1);
-  document.getElementById("tds").innerText = d.tds.toFixed(0);
+    dataLog.push({
+      waktu: data.waktu,
+      suhu: data.suhu,
+      ph: data.ph,
+      tds: data.tds,
+      status: statusText
+    });
+  });
 
-  const time = new Date().toLocaleTimeString();
-
-  labels.push(time);
-  phData.push(d.ph);
-  suhuData.push(d.suhu);
-  tdsData.push(d.tds);
-
-  if (labels.length > 30) {
-    labels.shift();
-    phData.shift();
-    suhuData.shift();
-    tdsData.shift();
-  }
-
-  chart.update();
-});
-
-/* ===== CSV EXPORT ===== */
-function downloadCSV() {
-  db.ref("riwayat").once("value").then(snapshot => {
-    let csv = "Waktu,pH,Suhu,TDS\n";
-
-    snapshot.forEach(child => {
-      const t = child.key;
-      const d = child.val();
-      csv += `${t},${d.ph},${d.suhu},${d.tds}\n`;
+  function exportCSV() {
+    let csv = "Waktu,Suhu,pH,TDS,Status\n";
+    dataLog.forEach(d => {
+      csv += `${d.waktu},${d.suhu},${d.ph},${d.tds},${d.status}\n`;
     });
 
     const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
+    const url = window.URL.createObjectURL(blob);
 
     const a = document.createElement("a");
     a.href = url;
-    a.download = "riwayat_kolam.csv";
+    a.download = "monitoring_kolam.csv";
     a.click();
-  });
-}
+  }
 </script>
 
 </body>
