@@ -1,101 +1,93 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Monitoring Kolam Ikan</title>
-  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-database-compat.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body { font-family: Arial; text-align:center; margin:20px; }
-    #charts { display:flex; justify-content:space-around; flex-wrap:wrap; }
-    canvas { max-width: 500px; margin:20px; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monitoring Kolam Ikan</title>
+<script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-database-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body { font-family: Arial; text-align:center; margin:20px; }
+#charts { display:flex; justify-content:space-around; flex-wrap:wrap; }
+canvas { max-width: 500px; margin:20px; }
+</style>
 </head>
 <body>
-  <h1>Monitoring Kolam Ikan (Realtime)</h1>
-  <div>
-    <h2>Data Saat Ini</h2>
-    <p>Suhu: <span id="suhu">0</span> °C</p>
-    <p>pH: <span id="ph">0</span></p>
-    <p>TDS: <span id="tds">0</span> ppm</p>
-  </div>
+<h1>Monitoring Kolam Ikan (Realtime)</h1>
+<div>
+  <h2>Data Saat Ini</h2>
+  <p>Suhu: <span id="suhu">0</span> °C</p>
+  <p>pH: <span id="ph">0</span></p>
+  <p>TDS: <span id="tds">0</span> ppm</p>
+  <p>Waktu: <span id="waktu">--:--:--</span></p>
+</div>
 
-  <div id="charts">
-    <canvas id="chartSuhu"></canvas>
-    <canvas id="chartPh"></canvas>
-    <canvas id="chartTds"></canvas>
-  </div>
+<div id="charts">
+  <canvas id="chartSuhu"></canvas>
+  <canvas id="chartPh"></canvas>
+  <canvas id="chartTds"></canvas>
+</div>
 
-  <script>
-    // ======= CONFIG FIREBASE =======
-    const firebaseConfig = {
-      apiKey: "AIzaSyAqrcy4kG9c8Os6uodLSJstNR_6e6VhHYc",
-      databaseURL: "https://monitoring-kolam-ikan-b1c16-default-rtdb.asia-southeast1.firebasedatabase.app/",
-      authDomain: "monitoring-kolam-ikan-b1c16.firebaseapp.com",
-      projectId: "monitoring-kolam-ikan-b1c16",
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAqrcy4kG9c8Os6uodLSJstNR_6e6VhHYc",
+  databaseURL: "https://monitoring-kolam-ikan-b1c16-default-rtdb.asia-southeast1.firebasedatabase.app/",
+  authDomain: "monitoring-kolam-ikan-b1c16.firebaseapp.com",
+  projectId: "monitoring-kolam-ikan-b1c16",
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
-    // ======= ELEMENTS =======
-    const suhuEl = document.getElementById('suhu');
-    const phEl = document.getElementById('ph');
-    const tdsEl = document.getElementById('tds');
+const suhuEl = document.getElementById('suhu');
+const phEl = document.getElementById('ph');
+const tdsEl = document.getElementById('tds');
+const waktuEl = document.getElementById('waktu');
 
-    // ======= CHART SETUP =======
-    const ctxSuhu = document.getElementById('chartSuhu').getContext('2d');
-    const ctxPh   = document.getElementById('chartPh').getContext('2d');
-    const ctxTds  = document.getElementById('chartTds').getContext('2d');
+const ctxSuhu = document.getElementById('chartSuhu').getContext('2d');
+const ctxPh   = document.getElementById('chartPh').getContext('2d');
+const ctxTds  = document.getElementById('chartTds').getContext('2d');
 
-    const chartSuhu = new Chart(ctxSuhu, {
-      type: 'line',
-      data: { labels: [], datasets:[{label:'Suhu (°C)', data:[], borderColor:'red', fill:false}] },
-      options: { responsive:true, animation:false }
-    });
-    const chartPh = new Chart(ctxPh, {
-      type: 'line',
-      data: { labels: [], datasets:[{label:'pH', data:[], borderColor:'blue', fill:false}] },
-      options: { responsive:true, animation:false }
-    });
-    const chartTds = new Chart(ctxTds, {
-      type: 'line',
-      data: { labels: [], datasets:[{label:'TDS (ppm)', data:[], borderColor:'green', fill:false}] },
-      options: { responsive:true, animation:false }
-    });
+const chartSuhu = new Chart(ctxSuhu, {
+  type: 'line',
+  data: { labels: [], datasets:[{label:'Suhu (°C)', data:[], borderColor:'red', fill:false}] },
+  options: { responsive:true, animation:false }
+});
+const chartPh = new Chart(ctxPh, {
+  type: 'line',
+  data: { labels: [], datasets:[{label:'pH', data:[], borderColor:'blue', fill:false}] },
+  options: { responsive:true, animation:false }
+});
+const chartTds = new Chart(ctxTds, {
+  type: 'line',
+  data: { labels: [], datasets:[{label:'TDS (ppm)', data:[], borderColor:'green', fill:false}] },
+  options: { responsive:true, animation:false }
+});
 
-    // ======= REALTIME LISTENER =======
-    const refData = db.ref('monitoring');
-    refData.on('value', (snapshot) => {
-      const data = snapshot.val();
-      if (!data) return;
+const refData = db.ref('monitoring');
+refData.on('value', (snapshot) => {
+  const data = snapshot.val();
+  if (!data) return;
 
-      // Update current values
-      suhuEl.innerText = data.suhu.toFixed(2);
-      phEl.innerText   = data.ph.toFixed(2);
-      tdsEl.innerText  = data.tds.toFixed(0);
+  suhuEl.innerText = data.suhu.toFixed(2);
+  phEl.innerText   = data.ph.toFixed(2);
+  tdsEl.innerText  = data.tds.toFixed(0);
+  waktuEl.innerText = data.timestamp;
 
-      const time = new Date(data.timestamp * 1000).toLocaleTimeString();
+  addData(chartSuhu, data.timestamp, data.suhu);
+  addData(chartPh, data.timestamp, data.ph);
+  addData(chartTds, data.timestamp, data.tds);
+});
 
-      // Tambahkan ke chart
-      addData(chartSuhu, time, data.suhu);
-      addData(chartPh, time, data.ph);
-      addData(chartTds, time, data.tds);
-    });
-
-    // ======= FUNCTION ADD DATA TO CHART =======
-    function addData(chart, label, value) {
-      chart.data.labels.push(label);
-      chart.data.datasets[0].data.push(value);
-
-      // Batas max 20 data terakhir
-      if (chart.data.labels.length > 20) {
-        chart.data.labels.shift();
-        chart.data.datasets[0].data.shift();
-      }
-      chart.update();
-    }
-  </script>
+function addData(chart, label, value) {
+  chart.data.labels.push(label);
+  chart.data.datasets[0].data.push(value);
+  if(chart.data.labels.length > 20){
+    chart.data.labels.shift();
+    chart.data.datasets[0].data.shift();
+  }
+  chart.update();
+}
+</script>
 </body>
 </html>
