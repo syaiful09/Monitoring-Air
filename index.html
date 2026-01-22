@@ -1,127 +1,101 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Monitoring Kualitas Air</title>
-
-  <!-- Firebase CDN -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monitoring Kolam Ikan</title>
+  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-database-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f4f6f8;
-      padding: 20px;
-    }
-    .card {
-      background: white;
-      padding: 20px;
-      border-radius: 10px;
-      max-width: 400px;
-      margin-bottom: 20px;
-    }
-    .status {
-      font-weight: bold;
-      padding: 10px;
-      border-radius: 5px;
-      color: white;
-      text-align: center;
-    }
-    .aman { background: green; }
-    .waspada { background: orange; }
-    .bahaya { background: red; }
-    button {
-      padding: 10px;
-      border: none;
-      background: #007bff;
-      color: white;
-      border-radius: 5px;
-      cursor: pointer;
-    }
+    body { font-family: Arial; text-align:center; margin:20px; }
+    #charts { display:flex; justify-content:space-around; flex-wrap:wrap; }
+    canvas { max-width: 500px; margin:20px; }
   </style>
 </head>
-
 <body>
+  <h1>Monitoring Kolam Ikan (Realtime)</h1>
+  <div>
+    <h2>Data Saat Ini</h2>
+    <p>Suhu: <span id="suhu">0</span> °C</p>
+    <p>pH: <span id="ph">0</span></p>
+    <p>TDS: <span id="tds">0</span> ppm</p>
+  </div>
 
-<h2>📡 Monitoring Kualitas Air (Realtime)</h2>
+  <div id="charts">
+    <canvas id="chartSuhu"></canvas>
+    <canvas id="chartPh"></canvas>
+    <canvas id="chartTds"></canvas>
+  </div>
 
-<div class="card">
-  <p>🌡 Suhu: <span id="suhu">-</span> °C</p>
-  <p>🧪 pH: <span id="ph">-</span></p>
-  <p>💧 TDS: <span id="tds">-</span> ppm</p>
-  <p>⏱ Update: <span id="waktu">-</span></p>
+  <script>
+    // ======= CONFIG FIREBASE =======
+    const firebaseConfig = {
+      apiKey: "AIzaSyAqrcy4kG9c8Os6uodLSJstNR_6e6VhHYc",
+      databaseURL: "https://monitoring-kolam-ikan-b1c16-default-rtdb.asia-southeast1.firebasedatabase.app/",
+      authDomain: "monitoring-kolam-ikan-b1c16.firebaseapp.com",
+      projectId: "monitoring-kolam-ikan-b1c16",
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-  <div id="status" class="status">MENUNGGU DATA</div>
-</div>
+    // ======= ELEMENTS =======
+    const suhuEl = document.getElementById('suhu');
+    const phEl = document.getElementById('ph');
+    const tdsEl = document.getElementById('tds');
 
-<button onclick="exportCSV()">⬇️ Export CSV</button>
+    // ======= CHART SETUP =======
+    const ctxSuhu = document.getElementById('chartSuhu').getContext('2d');
+    const ctxPh   = document.getElementById('chartPh').getContext('2d');
+    const ctxTds  = document.getElementById('chartTds').getContext('2d');
 
-<script>
-  // 🔥 GANTI SESUAI FIREBASE KAMU
-  const firebaseConfig = {
-    apiKey: "AIzaSyAqrcy4kG9c8Os6uodLSJstNR_6e6VhHYc",
-    authDomain: "monitoring-kolam-ikan-b1c16.firebaseapp.com",
-    databaseURL: "https://monitoring-kolam-ikan-b1c16-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "monitoring-kolam-ikan-b1c16",
-    storageBucket: "monitoring-kolam-ikan-b1c16.firebasestorage.app",
-    messagingSenderId: "522306586334",
-    appId: "1:522306586334:web:cabf4a21b9707bb5a8e44f"
-  };
+    const chartSuhu = new Chart(ctxSuhu, {
+      type: 'line',
+      data: { labels: [], datasets:[{label:'Suhu (°C)', data:[], borderColor:'red', fill:false}] },
+      options: { responsive:true, animation:false }
+    });
+    const chartPh = new Chart(ctxPh, {
+      type: 'line',
+      data: { labels: [], datasets:[{label:'pH', data:[], borderColor:'blue', fill:false}] },
+      options: { responsive:true, animation:false }
+    });
+    const chartTds = new Chart(ctxTds, {
+      type: 'line',
+      data: { labels: [], datasets:[{label:'TDS (ppm)', data:[], borderColor:'green', fill:false}] },
+      options: { responsive:true, animation:false }
+    });
 
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.database();
+    // ======= REALTIME LISTENER =======
+    const refData = db.ref('monitoring');
+    refData.on('value', (snapshot) => {
+      const data = snapshot.val();
+      if (!data) return;
 
-  let dataLog = [];
+      // Update current values
+      suhuEl.innerText = data.suhu.toFixed(2);
+      phEl.innerText   = data.ph.toFixed(2);
+      tdsEl.innerText  = data.tds.toFixed(0);
 
-  db.ref("monitoring").on("value", snapshot => {
-    const data = snapshot.val();
-    if (!data) return;
+      const time = new Date(data.timestamp * 1000).toLocaleTimeString();
 
-    document.getElementById("suhu").innerText = data.suhu;
-    document.getElementById("ph").innerText = data.ph;
-    document.getElementById("tds").innerText = data.tds;
-    document.getElementById("waktu").innerText = data.waktu;
+      // Tambahkan ke chart
+      addData(chartSuhu, time, data.suhu);
+      addData(chartPh, time, data.ph);
+      addData(chartTds, time, data.tds);
+    });
 
-    let statusText = "AMAN";
-    let statusClass = "aman";
+    // ======= FUNCTION ADD DATA TO CHART =======
+    function addData(chart, label, value) {
+      chart.data.labels.push(label);
+      chart.data.datasets[0].data.push(value);
 
-    if (data.ph < 6.5 || data.ph > 8.5 || data.tds > 1000) {
-      statusText = "BAHAYA";
-      statusClass = "bahaya";
-    } else if (data.tds > 600) {
-      statusText = "WASPADA";
-      statusClass = "waspada";
+      // Batas max 20 data terakhir
+      if (chart.data.labels.length > 20) {
+        chart.data.labels.shift();
+        chart.data.datasets[0].data.shift();
+      }
+      chart.update();
     }
-
-    const statusDiv = document.getElementById("status");
-    statusDiv.innerText = statusText;
-    statusDiv.className = "status " + statusClass;
-
-    dataLog.push({
-      waktu: data.waktu,
-      suhu: data.suhu,
-      ph: data.ph,
-      tds: data.tds,
-      status: statusText
-    });
-  });
-
-  function exportCSV() {
-    let csv = "Waktu,Suhu,pH,TDS,Status\n";
-    dataLog.forEach(d => {
-      csv += `${d.waktu},${d.suhu},${d.ph},${d.tds},${d.status}\n`;
-    });
-
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "monitoring_kolam.csv";
-    a.click();
-  }
-</script>
-
+  </script>
 </body>
 </html>
